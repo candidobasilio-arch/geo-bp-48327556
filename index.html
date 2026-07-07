@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>CEREBRO · GEO</title>
+<script>window.CESIUM_BASE_URL = 'https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/';</script>
+<script src="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js"></script>
+<link href="https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700;800;900&family=Red+Hat+Text:wght@400;500;600&family=Red+Hat+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>window.BRAIN_GRAPH = {"nodes":[[485,193],[570,193],[606,235],[606,370],[606,455],[606,573],[606,724],[606,898],[606,995],[568,1066],[543,1080],[469,1086],[399,1048],[422,992],[347,972],[270,868],[286,827],[225,785],[163,671],[200,621],[165,585],[238,365],[324,349],[314,278],[501,411],[383,479],[415,628],[410,758],[513,821],[543,993],[769,193],[684,193],[648,235],[648,370],[648,455],[648,573],[648,724],[648,898],[648,995],[686,1066],[711,1080],[785,1086],[855,1048],[832,992],[907,972],[984,868],[968,827],[1029,785],[1091,671],[1054,621],[1089,585],[1016,365],[930,349],[940,278],[753,411],[871,479],[839,628],[844,758],[741,821],[711,993]],"edges":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11],[11,12],[12,13],[13,14],[14,15],[15,16],[16,17],[17,18],[18,19],[19,20],[20,21],[21,22],[22,23],[23,0],[0,22],[22,24],[22,25],[22,18],[1,24],[24,3],[24,4],[24,25],[24,26],[25,19],[25,26],[19,26],[26,5],[26,27],[26,28],[27,17],[27,16],[27,13],[27,28],[28,6],[28,7],[28,29],[28,13],[13,29],[13,10],[29,8],[30,31],[31,32],[32,33],[33,34],[34,35],[35,36],[36,37],[37,38],[38,39],[39,40],[40,41],[41,42],[42,43],[43,44],[44,45],[45,46],[46,47],[47,48],[48,49],[49,50],[50,51],[51,52],[52,53],[53,30],[30,52],[52,54],[52,55],[52,48],[31,54],[54,33],[54,34],[54,55],[54,56],[55,49],[55,56],[49,56],[56,35],[56,57],[56,58],[57,47],[57,46],[57,43],[57,58],[58,36],[58,37],[58,59],[58,43],[43,59],[43,40],[59,38]]};</script>
+<script>
+(function () {
+  if (customElements.get('cerebro-reveal')) return;
+  var G = window.BRAIN_GRAPH;
+  var CX = 627, SCALE = 430, LOOP = 13, START = 2.8, DUR = 3.6;
+  var ICON_POOL = ['user','mail','user','phone','user','building','user','pin','user','at','user','phone','building','user','mail','pin','user','building','user','phone','mail','user','pin','user','building','user','phone','user','mail','user','pin','building','user','phone','user','mail'];
+
+  function mulberry32(seed){var a=seed>>>0;return function(){a|=0;a=(a+0x6D2B79F5)|0;var t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+  function smooth(a){if(a<=0)return 0;if(a>=1)return 1;return a*a*(3-2*a);}
+  function ease(a){if(a<=0)return 0;if(a>=1)return 1;return a*a*a*(a*(a*6-15)+10);}
+
+  class CerebroReveal extends HTMLElement {
+    connectedCallback(){
+      var root = this.attachShadow({mode:'open'});
+      this.accent = this.getAttribute('accent') || '#ffffff';
+      this.speed = parseFloat(this.getAttribute('speed') || '1');
+      this.glow = parseFloat(this.getAttribute('glow') || '1');
+      this.mode = this.getAttribute('mode') || 'loop';
+      var wordmark = this.getAttribute('wordmark');
+      var tagline = this.getAttribute('tagline') || '';
+      var bg = this.getAttribute('bg') || 'transparent';
+
+      root.innerHTML =
+        '<style>:host{display:block;position:relative;width:100%;height:100%;contain:content}' +
+        'canvas{position:absolute;inset:0;width:100%;height:100%;display:block}' +
+        '.wm{position:absolute;left:0;right:0;bottom:10%;text-align:center;opacity:0;pointer-events:none;' +
+        'transform:translateY(16px);will-change:opacity,transform}' +
+        '.wm b{display:block;font-family:var(--cerebro-font,"Roboto",sans-serif);font-weight:900;color:' + this.accent + ';font-size:clamp(24px,5vw,60px);letter-spacing:.14em;text-indent:.14em}' +
+        '.wm span{display:block;margin-top:14px;font-family:"Roboto",sans-serif;font-weight:500;text-transform:uppercase;color:rgba(255,255,255,.55);' +
+        'font-size:clamp(10px,1.3vw,15px);letter-spacing:.34em;text-indent:.34em}</style>' +
+        '<canvas></canvas>' +
+        (wordmark ? '<div class="wm"><b>' + wordmark + '</b>' + (tagline ? '<span>' + tagline + '</span>' : '') + '</div>' : '');
+
+      this.style.background = bg;
+      this.canvas = root.querySelector('canvas');
+      this.ctx = this.canvas.getContext('2d');
+      this.wordEl = root.querySelector('.wm');
+      this.build();
+      this._ro = new ResizeObserver(this.resize.bind(this));
+      this._ro.observe(this);
+      this.resize();
+      this.acc = 0; this.last = performance.now();
+      this.mx = null; this.my = null;
+      this._pm = function(e){ var r=this.getBoundingClientRect(); this.mx=e.clientX-r.left; this.my=e.clientY-r.top; if(!this.visible&&!this._raf&&!this.reduced){ this.last=performance.now(); this.start(); } }.bind(this);
+      this._pl = function(){ this.mx=null; this.my=null; }.bind(this);
+      this.addEventListener('pointermove', this._pm);
+      this.addEventListener('pointerleave', this._pl);
+      this.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      this.visible = false;
+      this._io = new IntersectionObserver(function(ents){ this.visible = ents[0].isIntersecting; if (this.visible && !this.reduced){ this.last = performance.now(); this.start(); } }.bind(this), {threshold:0.12});
+      this._io.observe(this);
+      if (this.reduced) this.draw(9.4);
+    }
+    disconnectedCallback(){ if(this._raf)cancelAnimationFrame(this._raf); this._ro&&this._ro.disconnect(); this._io&&this._io.disconnect(); this.removeEventListener('pointermove',this._pm); this.removeEventListener('pointerleave',this._pl); }
+    start(){ if(this._raf)return; var self=this; var loop=function(){ var now=performance.now(); self.acc+=(now-self.last)*self.speed; self.last=now; var t=self.acc/1000; if(self.mode==='once'){ if(t>9.6){ self.draw(9.6); self._raf=null; return; } } else { t=t%LOOP; } self.draw(t); if(self.visible){ self._raf=requestAnimationFrame(loop); } else { self._raf=null; } }; this._raf=requestAnimationFrame(loop); }
+    replay(){ this.acc=0; this.last=performance.now(); if(!this.reduced){ this.visible=true; this.start(); } }
+
+    build(){
+      var nodes = G.nodes.map(function(p){ return {nx:(p[0]-CX)/SCALE, ny:(p[1]-CX)/SCALE, icon:null}; });
+      this.edges = G.edges;
+      var count = Math.min(ICON_POOL.length, 38);
+      for (var i=0;i<count;i++){ var ni=Math.floor((i+0.5)*nodes.length/count); if(nodes[ni]) nodes[ni].icon=ICON_POOL[i%ICON_POOL.length]; }
+      this.nodes = nodes;
+      var rnd = mulberry32(99);
+      nodes.forEach(function(n){ n.ax=-.06+rnd()*1.12; n.ay=-.05+rnd()*1.1; n.kx=1+((rnd()*3)|0); n.ky=1+((rnd()*3)|0); n.phx=rnd()*6.283; n.phy=rnd()*6.283; var rad=Math.min(1,Math.hypot(n.nx,n.ny)); n.stag=rad*1.05+rnd()*0.18; n.rstag=(1-rad)*0.85+rnd()*0.16; });
+      var dr = mulberry32(7);
+      this.bokeh = Array.from({length:12},function(){return {x:dr(),y:dr(),r:.04+dr()*.13,a:.05+dr()*.10,kx:1+((dr()*2)|0),ky:1+((dr()*2)|0),ph:dr()*6.28};});
+      // Red de nodos de fondo: se desborda más allá de los bordes (rango -0.18..1.18) para que no parezca un circuito cerrado
+      var bn = Array.from({length:80},function(){return {x:-.18+dr()*1.36,y:-.18+dr()*1.36,r:.9+dr()*1.3,a:.12+dr()*.16,kx:1+((dr()*3)|0),ky:1+((dr()*3)|0),ph:dr()*6.28};});
+      var bl=[], seen={};
+      for(var i=0;i<bn.length;i++){
+        var best=[];
+        for(var j=0;j<bn.length;j++){ if(j===i)continue; var dx=bn[i].x-bn[j].x,dy=bn[i].y-bn[j].y; best.push([dx*dx+dy*dy,j]); }
+        best.sort(function(a,b){return a[0]-b[0];});
+        var nl=1+((dr()*2)|0);
+        for(var k=0;k<nl&&k<best.length;k++){ if(best[k][0]>0.05)break; var jj=best[k][1],key=i<jj?i+'_'+jj:jj+'_'+i; if(seen[key])continue; seen[key]=1; bl.push([i,jj]); }
+      }
+      this.bgNodes=bn; this.bgLinks=bl;
+    }
+    buildScatterLinks(){
+      var self=this;
+      var iconIdx = this.nodes.map(function(n,i){return n.icon?i:-1;}).filter(function(i){return i>=0;});
+      var cut = Math.min(this.W,this.H)*0.42, cut2=cut*cut;
+      var seen={}, links=[];
+      iconIdx.forEach(function(i){
+        var ix=self.nodes[i].sx0, iy=self.nodes[i].sy0;
+        var ds=iconIdx.filter(function(j){return j!==i;}).map(function(j){var dx=ix-self.nodes[j].sx0,dy=iy-self.nodes[j].sy0;return [dx*dx+dy*dy,j];}).sort(function(a,b){return a[0]-b[0];});
+        for(var k=0;k<3&&k<ds.length;k++){ if(k>=1&&ds[k][0]>cut2)break; var j=ds[k][1]; var key=i<j?i+'_'+j:j+'_'+i; if(seen[key])continue; seen[key]=1; links.push([i,j]); }
+      });
+      this.scatterLinks=links;
+    }
+    resize(){
+      var dpr=Math.min(window.devicePixelRatio||1,2);
+      var W=this.clientWidth||640, H=this.clientHeight||360;
+      this.W=W;this.H=H;this.canvas.width=Math.round(W*dpr);this.canvas.height=Math.round(H*dpr);
+      this.ctx.setTransform(dpr,0,0,dpr,0,0);
+      var S=Math.min(W,H)*0.33, cx=W*0.5, cy=H*0.42, amp=Math.min(W,H)*0.014;
+      this.nodes.forEach(function(n){ n.tx=cx+n.nx*S; n.ty=cy+n.ny*S; n.sx0=n.ax*W; n.sy0=n.ay*H; n.amp=amp; });
+      this.S=S;
+      this.buildScatterLinks();
+    }
+    draw(t){
+      var ctx=this.ctx,W=this.W,H=this.H,glow=this.glow,om=(Math.PI*2)/LOOP;
+      var hx=this.accent.replace('#',''),R=parseInt(hx.slice(0,2),16),G2=parseInt(hx.slice(2,4),16),B=parseInt(hx.slice(4,6),16);
+      var rgba=function(a){return 'rgba('+R+','+G2+','+B+','+a+')';};
+      var doReturn=this.mode!=='once';
+      var RSTART=10.6, RFALL=1.05;
+      var returnEnv=doReturn?smooth((t-10.9)/1.9):0;
+      var formProgress=smooth((t-START)/DUR)*(1-returnEnv);
+      var iconAlpha=1-smooth((t-START)/(DUR*0.9))*(1-returnEnv);
+      var meshFade=Math.pow(1-smooth((t-START)/(DUR*0.78))*(1-returnEnv),1.2);
+      var settle=smooth((t-6.8)/1.5)*(1-returnEnv);
+      var wAlpha=smooth((t-7.6)/1.3)*(this.mode==='once'?1:(1-smooth((t-11.1)/1.1)));
+      var wLine=0.0145*this.S;
+      ctx.clearRect(0,0,W,H);
+      this.bokeh.forEach(function(b){ var x=(b.x+.02*Math.sin(om*b.kx*t+b.ph))*W,y=(b.y+.02*Math.cos(om*b.ky*t+b.ph))*H,r=b.r*Math.min(W,H); var g=ctx.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,rgba(b.a*.9)); g.addColorStop(1,rgba(0)); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.2832); ctx.fill(); });
+      // Interacción con el cursor: empuja y enciende la red de nodos de fondo
+      var mx=this.mx, my=this.my, hasM=mx!=null;
+      var mRad=Math.min(W,H)*0.24, mRad2=mRad*mRad, mPush=Math.min(W,H)*0.07;
+      var bgFade=.4+.6*meshFade;
+      var bp=this.bgNodes.map(function(d){ var x=(d.x+.009*Math.sin(om*d.kx*t+d.ph))*W,y=(d.y+.009*Math.cos(om*d.ky*t+d.ph))*H,f=0; if(hasM){ var dx=x-mx,dy=y-my,d2=dx*dx+dy*dy; if(d2<mRad2&&d2>0){ var dist=Math.sqrt(d2); f=1-dist/mRad; var k=mPush*f/dist; x+=dx*k; y+=dy*k; } } return {x:x,y:y,f:f}; });
+      ctx.lineWidth=1; ctx.beginPath();
+      this.bgLinks.forEach(function(l){ var a=bp[l[0]],b=bp[l[1]]; ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); });
+      ctx.strokeStyle=rgba(.07*bgFade); ctx.stroke();
+      if(hasM){ ctx.beginPath(); this.bgLinks.forEach(function(l){ var a=bp[l[0]],b=bp[l[1]],ff=Math.max(a.f,b.f); if(ff>.02){ ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); } }); ctx.strokeStyle=rgba(.22*bgFade); ctx.stroke(); }
+      this.bgNodes.forEach(function(d,i){ var p=bp[i],boost=1+p.f*2.4; ctx.globalAlpha=Math.min(.7,d.a*.5*bgFade*boost); ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(p.x,p.y,d.r+2.4+p.f*2.5,0,6.2832); ctx.stroke(); ctx.globalAlpha=Math.min(.95,d.a*bgFade*boost); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(p.x,p.y,d.r+p.f*1.2,0,6.2832); ctx.fill(); });
+      ctx.globalAlpha=1;
+      var pos=this.nodes.map(function(n){ var formIn=ease(smooth((t-START-n.stag)/DUR)); var ret=doReturn?ease(smooth((t-RSTART-n.rstag)/RFALL)):0; var np=formIn*(1-ret); var sx=n.sx0+n.amp*Math.sin(om*n.kx*t+n.phx),sy=n.sy0+n.amp*Math.cos(om*n.ky*t+n.phy); return {x:sx+(n.tx-sx)*np,y:sy+(n.ty-sy)*np,p:np}; });
+      if(meshFade>0.02){ ctx.lineCap='round'; ctx.lineWidth=1.5; ctx.strokeStyle=rgba(0.5*meshFade); ctx.beginPath(); this.scatterLinks.forEach(function(e){ var a=pos[e[0]],b=pos[e[1]]; ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); }); ctx.stroke(); }
+      ctx.lineCap='round';ctx.lineJoin='round';ctx.shadowColor=rgba(.85);
+      var baseW=1.4;
+      var edgeEx=1.7+2.4*returnEnv;
+      this.edges.forEach(function(e){ var a=pos[e[0]],b=pos[e[1]],lock=Math.min(a.p,b.p),rev=Math.pow(lock,edgeEx); if(rev<0.02)return; ctx.shadowBlur=(2.6*glow*lock)*(1-.82*settle); ctx.strokeStyle=rgba(.95*rev); ctx.lineWidth=baseW+(wLine-baseW)*lock; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
+      ctx.shadowBlur=0;
+      var self=this;
+      this.nodes.forEach(function(n,i){ var p=pos[i],isIcon=!!n.icon; var scatterR=isIcon?3.4:2.0,lockR=wLine*.5,r=scatterR+(lockR-scatterR)*p.p,gr=(isIcon?11:6)+6*p.p; var ga=(isIcon?.6:.42)*(1-.9*settle)*(.55+.45*meshFade); if(ga>.01){ var g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,gr); g.addColorStop(0,rgba(ga)); g.addColorStop(1,rgba(0)); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,gr,0,6.2832); ctx.fill(); } var coreA=isIcon?.92:(.28+.64*p.p); ctx.fillStyle=rgba(coreA); ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(.6,r),0,6.2832); ctx.fill(); if(isIcon&&iconAlpha>.02) self.icon(ctx,n.icon,p.x,p.y,14-2*p.p,iconAlpha,rgba); });
+      if(this.wordEl){ this.wordEl.style.opacity=wAlpha; this.wordEl.style.transform='translateY('+(1-wAlpha)*16+'px)'; }
+    }
+    icon(ctx,type,x,y,r,a,rgba){
+      ctx.save();ctx.lineWidth=Math.max(1.1,r*.15);ctx.lineJoin='round';ctx.lineCap='round';
+      ctx.beginPath();ctx.arc(x,y,r*1.55,0,6.2832);ctx.fillStyle=rgba(.10*a);ctx.fill();ctx.strokeStyle=rgba(.5*a);ctx.stroke();ctx.strokeStyle=rgba(.95*a);
+      var rr=function(px,py,w,h,rad){ctx.beginPath();ctx.roundRect?ctx.roundRect(px,py,w,h,rad):ctx.rect(px,py,w,h);};
+      if(type==='mail'){ctx.strokeRect(x-r,y-r*.62,r*2,r*1.24);ctx.beginPath();ctx.moveTo(x-r,y-r*.62);ctx.lineTo(x,y+r*.12);ctx.lineTo(x+r,y-r*.62);ctx.stroke();}
+      else if(type==='phone'){rr(x-r*.6,y-r,r*1.2,r*2,r*.22);ctx.stroke();ctx.beginPath();ctx.moveTo(x-r*.22,y-r*.72);ctx.lineTo(x+r*.22,y-r*.72);ctx.stroke();ctx.beginPath();ctx.arc(x,y+r*.62,r*.1,0,6.2832);ctx.stroke();}
+      else if(type==='at'){ctx.beginPath();ctx.arc(x,y,r*.4,0,6.2832);ctx.stroke();ctx.beginPath();ctx.arc(x,y,r*.88,-.4,Math.PI*1.55);ctx.stroke();ctx.beginPath();ctx.moveTo(x+r*.4,y-r*.15);ctx.lineTo(x+r*.4,y+r*.3);ctx.stroke();}
+      else if(type==='user'){ctx.beginPath();ctx.arc(x,y-r*.34,r*.4,0,6.2832);ctx.stroke();ctx.beginPath();ctx.arc(x,y+r*.78,r*.8,Math.PI*1.16,Math.PI*1.84);ctx.stroke();}
+      else if(type==='pin'){ctx.beginPath();ctx.arc(x,y-r*.22,r*.6,Math.PI*.82,Math.PI*.18);ctx.stroke();ctx.beginPath();ctx.moveTo(x-r*.48,y+r*.02);ctx.lineTo(x,y+r);ctx.lineTo(x+r*.48,y+r*.02);ctx.stroke();ctx.beginPath();ctx.arc(x,y-r*.22,r*.15,0,6.2832);ctx.stroke();}
+      else if(type==='building'){rr(x-r*.74,y-r*.92,r*1.48,r*1.84,r*.06);ctx.stroke();ctx.beginPath();for(var wy=-.5;wy<.55;wy+=.42){for(var wx=-.38;wx<.42;wx+=.38){ctx.moveTo(x+wx*r-r*.1,y+wy*r);ctx.lineTo(x+wx*r+r*.1,y+wy*r);}}ctx.stroke();}
+      ctx.restore();
+    }
+  }
+  customElements.define('cerebro-reveal', CerebroReveal);
+})();
+</script>
+<style>
+  :root{
+    --bg:#080905; --panel:rgba(15,16,10,.78); --linea:rgba(226,214,168,.13);
+    --tinta:#F4F1E3; --tenue:#A8A48C; --rojo:#FF5C47; --teal:#41E8CF; --ambar:#FFB042;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,"Cascadia Mono","Roboto Mono",monospace;
+    --sans:"Space Grotesk","Segoe UI",system-ui,-apple-system,sans-serif;
+    --rhd:"Red Hat Display","Segoe UI",system-ui,-apple-system,sans-serif;
+    --rht:"Red Hat Text","Segoe UI",system-ui,-apple-system,sans-serif;
+    --rhm:"Red Hat Mono",ui-monospace,Menlo,monospace;
+  }
+  html,body,#cesiumContainer{width:100%;height:100%;margin:0;padding:0;overflow:hidden;background:var(--bg);}
+  *{box-sizing:border-box;}
+  .oculto{display:none !important;}
+
+  /* ---- Ocultar la interfaz nativa de Cesium (widgets y marca) ---- */
+  .cesium-viewer-bottom, .cesium-viewer-timelineContainer,
+  .cesium-viewer-animationContainer, .cesium-viewer-toolbar{display:none !important;}
+
+  /* ---- Viñeta cálida sobre el globo (bajo los paneles) ---- */
+  #vineta{position:absolute;inset:0;z-index:5;pointer-events:none;
+    background:
+      radial-gradient(120% 85% at 50% 40%, rgba(201,162,75,.08), transparent 55%),
+      radial-gradient(145% 125% at 50% 50%, transparent 55%, rgba(20,18,10,.5) 100%);}
+
+  /* ---- Panel CEREBRO ---- */
+  #panel{
+    position:absolute;top:16px;left:16px;z-index:10;width:296px;max-width:calc(100vw - 32px);
+    background:linear-gradient(160deg, rgba(255,244,214,.05), rgba(255,244,214,0) 38%), var(--panel);
+    backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);
+    border:1px solid var(--linea);border-radius:18px;color:var(--tinta);
+    font-family:var(--sans);
+    box-shadow:0 24px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,247,220,.07);
+    overflow:hidden;
+  }
+  #panel header{padding:15px 16px 11px;border-bottom:1px solid var(--linea);}
+  .marca{display:flex;align-items:baseline;gap:9px;}
+  .marca b{font-family:var(--rhd);font-size:17px;letter-spacing:.34em;font-weight:800;text-shadow:0 0 24px rgba(65,232,207,.4);}
+  .marca span{font-size:9.5px;letter-spacing:.22em;color:var(--teal);text-transform:uppercase;font-family:var(--rhm);}
+  .sub{margin-top:4px;font-size:11px;color:var(--tenue);letter-spacing:.03em;}
+
+  .cuerpo{padding:14px 16px 16px;}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;}
+  .stat{position:relative;border-radius:13px;padding:10px 11px;
+    background:rgba(255,251,235,.03);border:1px solid var(--linea);overflow:hidden;}
+  .stat::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(90% 70% at 18% 0%, var(--halo, transparent), transparent 70%);}
+  .stat.teal{--halo:rgba(65,232,207,.15);}
+  .stat.ambar{--halo:rgba(255,176,66,.15);}
+  .stat .chip{width:22px;height:22px;border-radius:7px;margin-bottom:8px;
+    display:flex;align-items:center;justify-content:center;border:1px solid;}
+  .stat.teal .chip{border-color:rgba(65,232,207,.4);background:rgba(65,232,207,.08);}
+  .stat.ambar .chip{border-color:rgba(255,176,66,.4);background:rgba(255,176,66,.08);}
+  .stat .chip i{width:7px;height:7px;border-radius:50%;}
+  .stat.teal .chip i{background:var(--teal);box-shadow:0 0 9px var(--teal);}
+  .stat.ambar .chip i{background:var(--ambar);box-shadow:0 0 9px var(--ambar);}
+  .stat .n{font-family:var(--mono);font-size:20px;font-weight:600;line-height:1;position:relative;}
+  .stat .l{margin-top:5px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;font-family:var(--mono);position:relative;}
+  .stat.teal .l{color:var(--teal);}
+  .stat.ambar .l{color:var(--ambar);}
+
+  .reloj-box{background:rgba(65,232,207,.06);border:1px solid rgba(65,232,207,.22);
+    border-radius:13px;padding:9px 11px;margin-bottom:10px;}
+  .reloj-box .l{font-size:9px;letter-spacing:.14em;line-height:1.6;text-transform:uppercase;color:var(--tenue);font-family:var(--mono);}
+  #reloj{font-family:var(--mono);font-size:16px;color:#fff;margin-top:4px;text-shadow:0 0 16px rgba(65,232,207,.45);}
+  #reloj small{color:var(--teal);font-size:11px;}
+
+  .leyenda{font-size:11px;color:var(--tenue);line-height:1.55;margin-bottom:10px;}
+  .leyenda .fila{display:flex;align-items:center;gap:9px;margin:4px 0;}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .dot.r{background:var(--rojo);box-shadow:0 0 10px var(--rojo);}
+  .dot.c{background:var(--teal);box-shadow:0 0 10px rgba(65,232,207,.7);}
+  .raya{width:18px;height:2.5px;border-radius:2px;flex:none;}
+  .raya.v{background:var(--teal);box-shadow:0 0 10px var(--teal);}
+  .raya.c{background:var(--teal);opacity:.35;}
+
+  #seguir{width:100%;padding:9px 12px;cursor:pointer;
+    font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--teal);background:rgba(65,232,207,.08);border:1px solid rgba(65,232,207,.32);
+    border-radius:11px;transition:background .15s, color .15s, box-shadow .15s;}
+  #seguir:hover{background:rgba(65,232,207,.16);}
+  #seguir.on{background:var(--teal);border-color:var(--teal);color:#062a24;
+    box-shadow:0 0 26px rgba(65,232,207,.35);}
+
+  #otra{width:100%;margin-top:8px;padding:8px 12px;cursor:pointer;
+    font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--tenue);background:transparent;border:1px solid var(--linea);
+    border-radius:11px;transition:color .15s, border-color .15s;}
+  #otra:hover{color:var(--tinta);border-color:rgba(226,214,168,.3);}
+
+  .credito{margin-top:10px;font-size:9px;color:rgba(168,164,140,.6);letter-spacing:.02em;}
+
+  /* Atribución de mapa (obligatoria OSM/CARTO) — discreta, esquina inferior derecha */
+  #cred-mapa{position:absolute;right:10px;bottom:6px;z-index:8;pointer-events:none;
+    font-family:var(--mono);font-size:8.5px;letter-spacing:.03em;color:rgba(200,195,170,.42);}
+
+  /* ---- Barra de reproducción propia (abajo) ---- */
+  #barra{
+    position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:10;
+    width:min(720px, calc(100vw - 32px));
+    background:linear-gradient(160deg, rgba(255,244,214,.04), rgba(255,244,214,0) 45%), var(--panel);
+    backdrop-filter:blur(18px) saturate(1.15);-webkit-backdrop-filter:blur(18px) saturate(1.15);
+    border:1px solid var(--linea);border-radius:16px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,247,220,.07);
+    font-family:var(--sans);color:var(--tinta);padding:11px 14px 12px;
+  }
+  .fila-ctrl{display:flex;align-items:center;gap:11px;}
+  #play{
+    width:38px;height:38px;flex:none;cursor:pointer;border-radius:50%;
+    border:1px solid rgba(65,232,207,.42);background:rgba(65,232,207,.1);color:var(--teal);
+    font-size:14px;display:flex;align-items:center;justify-content:center;
+    transition:background .15s, box-shadow .15s;
+  }
+  #play:hover{background:rgba(65,232,207,.2);box-shadow:0 0 22px rgba(65,232,207,.3);}
+  .tiempo{font-family:var(--mono);font-size:11px;color:var(--tenue);white-space:nowrap;}
+  #t-actual{color:#fff;text-shadow:0 0 12px rgba(65,232,207,.35);}
+
+  #pista{position:relative;flex:1;height:24px;cursor:pointer;display:flex;align-items:center;}
+  #pista .riel{position:absolute;left:0;right:0;height:4px;border-radius:3px;
+    background:rgba(226,214,168,.14);}
+  #progreso{position:absolute;left:0;height:4px;border-radius:3px;width:0%;
+    background:linear-gradient(90deg, var(--teal), var(--ambar));
+    box-shadow:0 0 12px rgba(65,232,207,.55);}
+  #perilla{position:absolute;top:50%;width:13px;height:13px;border-radius:50%;left:0%;
+    transform:translate(-50%,-50%);background:#fff;border:2px solid var(--teal);
+    box-shadow:0 0 10px rgba(65,232,207,.9), 0 0 22px rgba(65,232,207,.45);}
+
+  .velocidades{display:flex;gap:5px;flex:none;}
+  .vel{cursor:pointer;padding:4px 8px;font-size:10px;font-weight:600;color:var(--tenue);
+    font-family:var(--mono);background:transparent;border:1px solid var(--linea);border-radius:8px;
+    transition:all .12s;}
+  .vel:hover{color:var(--tinta);border-color:rgba(226,214,168,.3);}
+  .vel.on{color:#062a24;background:var(--teal);border-color:var(--teal);
+    box-shadow:0 0 14px rgba(65,232,207,.35);}
+
+  #fechas{display:flex;justify-content:space-between;margin-top:7px;
+    font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:rgba(168,164,140,.7);}
+
+  #aviso{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:20;
+    background:var(--panel);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border:1px solid var(--linea);border-radius:14px;padding:18px 22px;
+    color:var(--tinta);font-family:var(--sans);font-size:13px;display:none;max-width:80%;text-align:center;}
+
+  @media (max-width:560px){
+    #panel{width:calc(100vw - 32px);}
+    .tiempo.fin, #fechas{display:none;}
+  }
+  /* ---- MODO MINIMALISTA ---- */
+  .stats, .leyenda, .credito, .sub { display: none !important; }
+  #panel { width: 220px !important; }
+  #panel header { padding: 10px 12px 10px !important; }
+  .cuerpo { padding: 10px 12px 12px !important; }
+  .reloj-box { margin-bottom: 10px !important; }
+
+  /* ============================================================ */
+  /* PANTALLA DE INICIO — mínima, sobre la animación CEREBRO      */
+  /* ============================================================ */
+  #subida{position:fixed;inset:0;z-index:50;background:#050505;overflow:hidden;}
+  #fondo-reveal{position:absolute;inset:0;}
+  #inicio-ui{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;
+    align-items:center;justify-content:flex-end;text-align:center;pointer-events:none;
+    padding:0 24px calc(30px + env(safe-area-inset-bottom, 0px));}
+  .lk-nombre{font-family:var(--rhd);font-weight:800;color:#fff;
+    font-size:clamp(26px,6vw,42px);letter-spacing:.30em;text-indent:.30em;line-height:1;}
+  .lk-geo{margin-top:11px;font-family:var(--rhm);font-weight:500;color:rgba(255,255,255,.48);
+    font-size:11px;letter-spacing:.6em;text-indent:.6em;text-transform:uppercase;}
+  #btn-subir{pointer-events:auto;margin-top:32px;min-width:220px;padding:13px 32px;cursor:pointer;
+    font-family:var(--rhd);font-weight:700;font-size:12px;letter-spacing:.22em;text-indent:.22em;
+    text-transform:uppercase;color:#fff;
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.3);border-radius:999px;
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    transition:border-color .2s, background .2s, box-shadow .2s;}
+  #btn-subir:hover{border-color:rgba(255,255,255,.9);background:rgba(255,255,255,.08);}
+  #btn-subir:disabled{opacity:.45;cursor:default;}
+  #link-demo{pointer-events:auto;margin-top:15px;cursor:pointer;background:none;border:0;padding:6px 12px;
+    font-family:var(--rht);font-weight:400;font-size:12px;letter-spacing:.05em;
+    color:rgba(255,255,255,.4);transition:color .2s;}
+  #link-demo:hover{color:rgba(255,255,255,.85);}
+  #estado{min-height:17px;margin-top:16px;font-family:var(--rht);font-size:11.5px;
+    letter-spacing:.03em;color:rgba(255,255,255,.55);}
+  #estado.err{color:#ff9486;}
+  #estado .spin{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:-2px;
+    margin-right:8px;border:1.5px solid rgba(255,255,255,.18);border-top-color:rgba(255,255,255,.85);
+    animation:gira .8s linear infinite;}
+  @keyframes gira{to{transform:rotate(360deg);}}
+  #privacidad{margin-top:20px;display:flex;align-items:center;gap:7px;
+    font-family:var(--rht);font-size:10.5px;letter-spacing:.03em;color:rgba(255,255,255,.32);}
+  #privacidad svg{flex:none;opacity:.6;}
+  #subida.arrastrando #btn-subir{border-color:#fff;box-shadow:0 0 0 5px rgba(255,255,255,.07);}
+  @media (max-height:600px){
+    .lk-nombre{font-size:24px;}
+    #btn-subir{margin-top:20px;}
+    #privacidad{margin-top:14px;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ PANTALLA DE INICIO ============ -->
+<div id="subida">
+  <div id="fondo-reveal"><cerebro-reveal bg="transparent"></cerebro-reveal></div>
+  <div id="inicio-ui">
+    <div class="lk-nombre">CEREBRO</div>
+    <div class="lk-geo">GEO</div>
+    <button id="btn-subir" type="button">Subir sábana</button>
+    <button id="link-demo" type="button">Ver demostración</button>
+    <div id="estado"></div>
+    <div id="privacidad">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span>Procesamiento local · el archivo no sale del dispositivo</span>
+    </div>
+  </div>
+  <input type="file" id="archivo" accept=".xlsx,.xls" style="display:none">
+</div>
+
+<!-- ============ VISOR ============ -->
+<div id="cesiumContainer"></div>
+<div id="vineta" class="oculto"></div>
+<div id="cred-mapa" class="oculto">© OpenStreetMap · © CARTO · CesiumJS</div>
+
+<div id="panel" class="oculto">
+  <header>
+    <div class="marca"><b>CEREBRO</b><span>geo</span></div>
+    <div class="sub">Reconstrucción de trayectoria · <span id="objetivo"></span></div>
+  </header>
+  <div class="cuerpo">
+    <div class="stats">
+      <div class="stat teal"><div class="chip"><i></i></div><div class="n" id="n-eventos">—</div><div class="l">Eventos</div></div>
+      <div class="stat ambar"><div class="chip"><i></i></div><div class="n" id="n-nodos">—</div><div class="l">Sitios</div></div>
+    </div>
+    <div class="reloj-box">
+      <div class="l">Posición en el tiempo · <span id="huso"></span></div>
+      <div id="reloj">—</div>
+    </div>
+    <div class="leyenda">
+      <div class="fila"><span class="dot c"></span> Sitio visitado</div>
+      <div class="fila"><span class="dot r"></span> Zona muy recorrida</div>
+      <div class="fila"><span class="raya v"></span> Recorrido (se traza con el tiempo)</div>
+    </div>
+    <button id="seguir">Seguir al objetivo</button>
+    <button id="otra">↺ Nueva sábana</button>
+    <div class="credito" id="credito">Mapa © OpenStreetMap · © CARTO &nbsp;·&nbsp; Motor CesiumJS</div>
+  </div>
+</div>
+
+<div id="barra" class="oculto">
+  <div class="fila-ctrl">
+    <button id="play" title="Reproducir / pausar">&#9654;</button>
+    <span class="tiempo" id="t-actual">—</span>
+    <div id="pista">
+      <div class="riel"></div>
+      <div id="progreso"></div>
+      <div id="perilla"></div>
+    </div>
+    <span class="tiempo fin" id="t-fin">—</span>
+    <div class="velocidades">
+      <button class="vel" data-f="0.5">0.5×</button>
+      <button class="vel on" data-f="1">1×</button>
+      <button class="vel" data-f="2">2×</button>
+      <button class="vel" data-f="4">4×</button>
+    </div>
+  </div>
+  <div id="fechas"><span id="f-ini">—</span><span id="f-fin">—</span></div>
+</div>
+
+<div id="aviso"></div>
+
+<script>
+'use strict';
+
+// ==========================================================================
+// CONFIGURACIÓN (equivalente a los parámetros de generar_globo)
+// ==========================================================================
+const CONFIG = {
+  usarLocal: true,        // reproducir en hora local UTC-6 (false = UTC)
+  mapa: 'oscuro',         // oscuro | calles | satelite | natural
+  token: '',              // token de Cesium ion (opcional)
+  multFijo: 28800,        // velocidad base: 28800 = 3 s por día de datos
+  segRepro: 40,           // si multFijo=0: una vuelta completa dura ~40 s
+  altSeguimiento: 3000,   // altura cámara de seguimiento (m) — nivel colonia
+  hoja: 'crono',          // hoja esperada de la sábana
+  precisionNodos: 4,      // 4 ≈ 11 m
+  descartarSinCoords: true,
+};
+
+// ==========================================================================
+// FUNCIÓN 1 · EXTRACTOR DE SÁBANA — port fiel de extractor.py a JavaScript
+// Corre en el navegador con SheetJS: la sábana nunca sale del dispositivo.
+// ===EXTRACTOR-INICIO===
+// ==========================================================================
+const VACIOS = new Set(['', '-', '--', '---', 'n/a', 'na', 'nan', 'null', 'none',
+                        'sin dato', 's/d', 'sd', '.', ',']);
+const MS_HORA = 3600 * 1000;
+
+function normTexto(t) {
+  // minúsculas, sin acentos y sin espacios — para comparar encabezados
+  return String(t).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+}
+
+function buscarColumna(headers, claves) {
+  const norm = headers.map(h => normTexto(h == null ? '' : h));
+  // 1) coincidencia exacta
+  for (let i = 0; i < norm.length; i++) {
+    if (claves.includes(norm[i])) return i;
+  }
+  // 2) la columna empieza con / contiene la clave
+  for (const clave of claves) {
+    for (let i = 0; i < norm.length; i++) {
+      if (norm[i].startsWith(clave) || norm[i].includes(clave)) return i;
+    }
+  }
+  return -1;
+}
+
+function aFloat(v) {
+  // Convierte una celda a float. Maneja '-', vacíos, coma decimal
+  // ('19,4326') y símbolos de grado. Devuelve null si no es válido.
+  if (v === null || v === undefined || typeof v === 'boolean') return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+
+  let s = String(v).trim();
+  if (VACIOS.has(normTexto(s))) return null;
+  s = s.replace(/[°º\s]/g, '');
+
+  if (s.includes(',') && s.includes('.')) {          // "1.234,56" -> "1234.56"
+    s = s.split('.').join('').replace(',', '.');
+  } else if (s.includes(',')) {                      // "19,4326"  -> "19.4326"
+    s = s.replace(',', '.');
+  }
+  if (s === '') return null;
+  const f = Number(s);                               // Number('12abc') = NaN
+  return isFinite(f) ? f : null;
+}
+
+function expandirAnio(yy) {  // convención pandas: 2 dígitos <70 => 20xx
+  return yy < 70 ? 2000 + yy : 1900 + yy;
+}
+
+// Epoch de los seriales de Excel. El sistema 1900 cuenta desde 1899-12-30;
+// los workbooks con date1904 (Mac antiguo) cuentan desde 1904-01-01.
+const EPOCH_1900 = Date.UTC(1899, 11, 30);
+const EPOCH_1904 = Date.UTC(1904, 0, 1);
+let _epochExcel = EPOCH_1900;   // extraerSabana lo ajusta según el workbook
+
+function serialAFecha(v) {
+  // número serial de Excel -> {y,m,d,H,M,S} (fecha y hora embebida)
+  const dias = Math.floor(v);
+  let seg = Math.round((v - dias) * 86400);   // corrige el error binario de Excel
+  let ms = _epochExcel + dias * 86400000;
+  if (seg >= 86400) { seg -= 86400; ms += 86400000; }
+  const d = new Date(ms);
+  return {
+    y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(),
+    H: Math.floor(seg / 3600), M: Math.floor((seg % 3600) / 60), S: seg % 60,
+  };
+}
+
+function aTime(v) {
+  // Celda de Hora -> {H,M,S} o null. Acepta fracción de día de Excel,
+  // texto ('14:30', '14:30:00', '2:30 PM', '14.30') y Date.
+  if (v === null || v === undefined || typeof v === 'boolean') return null;
+
+  if (typeof v === 'number') {
+    if (!isFinite(v)) return null;
+    let frac = v >= 1 ? v - Math.floor(v) : v;       // fracción de día (0–1)
+    if (frac < 0) return null;
+    const seg = Math.round(frac * 86400) % 86400;
+    return { H: Math.floor(seg / 3600), M: Math.floor((seg % 3600) / 60), S: seg % 60 };
+  }
+  if (v instanceof Date) {
+    return { H: v.getUTCHours(), M: v.getUTCMinutes(), S: v.getUTCSeconds() };
+  }
+
+  const s = String(v).trim();
+  if (VACIOS.has(normTexto(s))) return null;
+  const m = s.match(/(\d{1,2})[:.](\d{1,2})(?:[:.](\d{1,2}))?/);
+  if (!m) return null;
+  let H = parseInt(m[1], 10);
+  const M = parseInt(m[2], 10);
+  const S = m[3] ? parseInt(m[3], 10) : 0;
+  const ampm = s.match(/([AaPp])\.?\s?[Mm]\.?/);
+  if (ampm) {
+    const p = ampm[1].toLowerCase() === 'p';
+    H = (H % 12) + (p ? 12 : 0);                     // 12 AM -> 0 · 12 PM -> 12
+  }
+  if (H > 23 || M > 59 || S > 59) return null;
+  return { H, M, S };
+}
+
+function aDate(v) {
+  // Celda de Fecha -> {y,m,d, hEmb?} o null. Acepta número serial de Excel,
+  // Date y texto (dd/mm/aaaa por defecto, formato mexicano; también ISO).
+  // Si la celda trae también la hora, la devuelve en hEmb (hora embebida).
+  if (v === null || v === undefined || typeof v === 'boolean') return null;
+
+  if (typeof v === 'number') {
+    if (!isFinite(v) || v < 1) return null;          // fracción pura = solo hora
+    const c = serialAFecha(v);
+    const conHora = (v % 1) > 1e-9;
+    return {
+      y: c.y, m: c.m, d: c.d,
+      hEmb: conHora ? { H: c.H, M: c.M, S: c.S } : null,
+    };
+  }
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return null;
+    const hEmb = (v.getUTCHours() || v.getUTCMinutes() || v.getUTCSeconds())
+      ? { H: v.getUTCHours(), M: v.getUTCMinutes(), S: v.getUTCSeconds() } : null;
+    return { y: v.getUTCFullYear(), m: v.getUTCMonth() + 1, d: v.getUTCDate(), hEmb };
+  }
+
+  const s = String(v).trim();
+  if (VACIOS.has(normTexto(s))) return null;
+
+  let y, mo, d, resto = null, mm;
+  if ((mm = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})(?:[T ](.+))?$/))) {
+    y = +mm[1]; mo = +mm[2]; d = +mm[3]; resto = mm[4] || null;   // ISO aaaa-mm-dd
+  } else if ((mm = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})(?:[ ](.+))?$/))) {
+    let a = +mm[1], b = +mm[2];
+    y = mm[3].length <= 2 ? expandirAnio(+mm[3]) : +mm[3];
+    resto = mm[4] || null;
+    if (a > 12 && b <= 12)      { d = a; mo = b; }   // 18/09 -> día/mes
+    else if (b > 12 && a <= 12) { d = b; mo = a; }   // 09/18 -> mes/día (fallback)
+    else if (a <= 12 && b <= 12){ d = a; mo = b; }   // ambiguo -> dayfirst (mexicano)
+    else return null;
+  } else {
+    return null;
+  }
+  if (mo < 1 || mo > 12 || d < 1 || d > 31 || y < 1900 || y > 2200) return null;
+  return { y, m: mo, d, hEmb: resto ? aTime(resto) : null };
+}
+
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function formatearMarca(msUtc) {
+  // instante absoluto (ms UTC) -> {t_utc, t_local} con hora local UTC-6.
+  // Se formatea con getUTC* para no depender de la zona del dispositivo.
+  const u = new Date(msUtc);
+  const l = new Date(msUtc - 6 * MS_HORA);
+  const f = (x, sep, sufijo) =>
+    x.getUTCFullYear() + '-' + pad2(x.getUTCMonth() + 1) + '-' + pad2(x.getUTCDate()) +
+    sep + pad2(x.getUTCHours()) + ':' + pad2(x.getUTCMinutes()) + ':' + pad2(x.getUTCSeconds()) + sufijo;
+  return { t_utc: f(u, 'T', 'Z'), t_local: f(l, ' ', '') };
+}
+
+function marcaTiempo(fechaCel, horaCel) {
+  // Combina Fecha + Hora(utc-6) -> {ms, t_utc, t_local} o null.
+  const d = aDate(fechaCel);
+  if (!d) return null;
+  let t = aTime(horaCel);
+  if (!t && d.hEmb) t = d.hEmb;            // hora embebida en la celda de Fecha
+  if (!t) t = { H: 0, M: 0, S: 0 };        // sin hora -> medianoche local
+  const msLocal = Date.UTC(d.y, d.m - 1, d.d, t.H, t.M, t.S);
+  const msUtc = msLocal + 6 * MS_HORA;     // la sábana viene en UTC-6
+  const fm = formatearMarca(msUtc);
+  return { ms: msUtc, t_utc: fm.t_utc, t_local: fm.t_local };
+}
+
+function agruparNodos(eventos, precision) {
+  // Agrupa pings cercanos (mismo sitio/antena) redondeando coordenadas.
+  const pot = Math.pow(10, precision);
+  const grupos = new Map();
+  eventos.forEach(e => {
+    if (e.lat === null || e.lon === null) return;
+    const clave = (Math.round(e.lat * pot) / pot) + ',' + (Math.round(e.lon * pot) / pot);
+    let g = grupos.get(clave);
+    if (!g) {
+      g = { sLat: 0, sLon: 0, freq: 0, primero: e.t_local, ultimo: e.t_local };
+      grupos.set(clave, g);
+    }
+    g.sLat += e.lat; g.sLon += e.lon; g.freq += 1;
+    if (e.t_local < g.primero) g.primero = e.t_local;
+    if (e.t_local > g.ultimo)  g.ultimo  = e.t_local;
+  });
+  const nodos = [];
+  grupos.forEach(g => nodos.push({
+    lat: Number((g.sLat / g.freq).toFixed(6)),
+    lon: Number((g.sLon / g.freq).toFixed(6)),
+    freq: g.freq, primero: g.primero, ultimo: g.ultimo,
+  }));
+  nodos.sort((a, b) => b.freq - a.freq);
+  return nodos;
+}
+
+function armarContrato(eventosCrudos, objetivo, precision, descartados) {
+  // eventos {ms, t_utc, t_local, lat, lon} -> estructura intermedia (contrato)
+  eventosCrudos.sort((a, b) => a.ms - b.ms);         // orden cronológico
+  const eventos = eventosCrudos.map(e => ({
+    t_utc: e.t_utc, t_local: e.t_local, lat: e.lat, lon: e.lon,
+  }));
+  const nodos = agruparNodos(eventos, precision);
+  const conCoords = eventos.filter(e => e.lat !== null);
+  const rango = conCoords.length
+    ? { inicio: conCoords[0].t_local, fin: conCoords[conCoords.length - 1].t_local }
+    : null;
+  return {
+    objetivo: objetivo,
+    huso_origen: 'UTC-6',
+    generado: new Date().toISOString().slice(0, 19) + 'Z',
+    rango: rango,
+    descartados: descartados,
+    eventos: eventos,
+    nodos: nodos,
+  };
+}
+
+function extraerSabana(workbook, opciones) {
+  // Sábana (workbook de SheetJS) -> {contrato, hoja} — port de extraer_sabana().
+  const op = Object.assign({
+    hoja: 'crono', objetivo: 'Objetivo',
+    descartarSinCoords: true, precisionNodos: 4,
+  }, opciones || {});
+
+  // Sistema de fechas del workbook (1900 normal · 1904 en Mac antiguo)
+  _epochExcel = (workbook.Workbook && workbook.Workbook.WBProps &&
+                 workbook.Workbook.WBProps.date1904) ? EPOCH_1904 : EPOCH_1900;
+
+  // Hoja: la pedida (tolerante a acentos/mayúsculas) o, si no existe, la primera.
+  const buscada = normTexto(op.hoja);
+  let nombreHoja = workbook.SheetNames.find(n => normTexto(n) === buscada);
+  if (!nombreHoja) nombreHoja = workbook.SheetNames[0];
+  const ws = workbook.Sheets[nombreHoja];
+  if (!ws) throw new Error('El archivo no contiene hojas legibles.');
+
+  const filas = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+  // Encabezados: primera fila con contenido
+  let ih = 0;
+  while (ih < filas.length &&
+         !(filas[ih] || []).some(c => c !== null && String(c).trim() !== '')) ih++;
+  if (ih >= filas.length) throw new Error("La hoja '" + nombreHoja + "' está vacía.");
+  const headers = (filas[ih] || []).map(h => h === null ? '' : h);
+
+  const iFecha = buscarColumna(headers, ['fecha']);
+  const iHora  = buscarColumna(headers, ['hora']);
+  const iLat   = buscarColumna(headers, ['latitud', 'lat']);
+  const iLon   = buscarColumna(headers, ['longitud', 'lon', 'lng']);
+
+  const faltan = [['Fecha', iFecha], ['Hora', iHora], ['Latitud', iLat], ['Longitud', iLon]]
+    .filter(p => p[1] < 0).map(p => p[0]);
+  if (faltan.length) {
+    throw new Error('No se encontraron las columnas [' + faltan.join(', ') +
+      "] en la hoja '" + nombreHoja + "'. Columnas disponibles: " +
+      headers.filter(h => String(h).trim() !== '').join(' · '));
+  }
+
+  const crudos = [];
+  const descartados = { sin_fecha: 0, sin_coords: 0 };
+
+  for (let r = ih + 1; r < filas.length; r++) {
+    const fila = filas[r] || [];
+    if (!fila.some(c => c !== null && String(c).trim() !== '')) continue;  // fila vacía
+
+    const marca = marcaTiempo(fila[iFecha], fila[iHora]);
+    if (!marca) { descartados.sin_fecha++; continue; }
+
+    let lat = aFloat(fila[iLat]);
+    let lon = aFloat(fila[iLon]);
+    const coordsOk = lat !== null && lon !== null &&
+                     lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+    if (!coordsOk) {
+      descartados.sin_coords++;
+      if (op.descartarSinCoords) continue;
+      lat = lon = null;   // se queda en la línea de tiempo, sin moverse
+    }
+
+    crudos.push({ ms: marca.ms, t_utc: marca.t_utc, t_local: marca.t_local, lat, lon });
+  }
+
+  return {
+    contrato: armarContrato(crudos, op.objetivo, op.precisionNodos, descartados),
+    hoja: nombreHoja,
+  };
+}
+// ===EXTRACTOR-FIN===
+
+// ==========================================================================
+// FUNCIÓN 2 · VISOR — la plantilla del globo, encapsulada.
+// Se llama una vez con el contrato ya construido.
+// ==========================================================================
+function iniciarGlobo(DATOS) {
+const USAR_LOCAL = CONFIG.usarLocal;
+const MAPA = CONFIG.mapa;
+const TOKEN = CONFIG.token;
+const MULT_FIJO = CONFIG.multFijo;   // >0 fija la velocidad base; 0 => automática
+const SEG_REPRO = CONFIG.segRepro;   // seg. que dura una reproducción completa a 1×
+
+// Mostrar el visor / ocultar la pantalla de carga
+document.getElementById('subida').classList.add('oculto');
+['vineta', 'panel', 'barra', 'cred-mapa'].forEach(id =>
+  document.getElementById(id).classList.remove('oculto'));
+
+// ---- Panel ------------------------------------------------------------
+document.getElementById('objetivo').textContent = DATOS.objetivo || '—';
+document.getElementById('n-eventos').textContent = DATOS.eventos.length;
+document.getElementById('n-nodos').textContent = DATOS.nodos.length;
+document.getElementById('huso').textContent = USAR_LOCAL ? 'hora local UTC-6' : 'UTC';
+
+function isoDe(e){ return USAR_LOCAL ? e.t_local.replace(' ', 'T') : e.t_utc; }
+function avisar(t){ const a=document.getElementById('aviso'); a.textContent=t; a.style.display='block'; }
+
+// ---- Visor (sin interfaz nativa) ---------------------------------------
+if (TOKEN) Cesium.Ion.defaultAccessToken = TOKEN;
+const viewer = new Cesium.Viewer('cesiumContainer', {
+  baseLayer:false, baseLayerPicker:false, geocoder:false, homeButton:false,
+  navigationHelpButton:false, infoBox:false, selectionIndicator:false,
+  animation:false, timeline:false, fullscreenButton:false, sceneModePicker:false,
+  shouldAnimate:false,
+  contextOptions:{ webgl:{ preserveDrawingBuffer:true } },
+});
+const scene = viewer.scene, globe = scene.globe;
+globe.enableLighting = false;
+globe.showGroundAtmosphere = false;            // sin halo luminoso en el borde
+globe.baseColor = Cesium.Color.fromCssColorString('#3A3628');
+scene.skyAtmosphere.show = false;              // sin resplandor atmosférico
+if (scene.skyBox) scene.skyBox.show = false;   // sin estrellas: fondo limpio
+if (scene.sun)  scene.sun.show  = false;
+if (scene.moon) scene.moon.show = false;
+scene.backgroundColor = Cesium.Color.fromCssColorString('#14130d');
+scene.fog.enabled = false;
+scene.highDynamicRange = false;
+
+// Capa base offline incluida en Cesium: aparece al instante (anti-negro).
+try {
+  Cesium.TileMapServiceImageryProvider
+    .fromUrl(Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII'))
+    .then(p => viewer.imageryLayers.addImageryProvider(p, 0)).catch(()=>{});
+} catch (e) {}
+
+function prov(url, credit, sub, maxlvl){
+  return new Cesium.UrlTemplateImageryProvider({
+    url, credit, subdomains: sub, maximumLevel: maxlvl || 19,
+  });
+}
+const elCred = document.getElementById('credito');
+if (TOKEN) {
+  Cesium.createWorldImageryAsync().then(p => viewer.imageryLayers.addImageryProvider(p)).catch(()=>{});
+  Cesium.createWorldTerrainAsync().then(t => { viewer.terrainProvider = t; }).catch(()=>{});
+  elCred.textContent = 'Imágenes © Cesium ion · Motor CesiumJS';
+} else if (MAPA === 'satelite') {
+  viewer.imageryLayers.addImageryProvider(prov(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    'Esri', undefined, 19));
+  elCred.textContent = 'Imágenes © Esri, Maxar, Earthstar Geographics · Motor CesiumJS';
+  document.getElementById('cred-mapa').textContent = '© Esri, Maxar · CesiumJS';
+} else if (MAPA === 'calles') {
+  viewer.imageryLayers.addImageryProvider(prov(
+    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+    'CARTO', 'abcd', 20));
+} else if (MAPA === 'oscuro') {
+  // Base oscura CARTO (líneas y letras claras) aclarada a gris medio-oscuro
+  // dorado: mapa invertido sin caer en negro.
+  const capa = viewer.imageryLayers.addImageryProvider(prov(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+    'CARTO', 'abcd', 20));
+  capa.brightness = 3.0;    // levanta el fondo del negro a gris oscuro
+  capa.contrast   = 1.0;
+  capa.saturation = 0.6;
+  capa.gamma      = 0.72;   // <1 aclara los medios tonos (calles, bordes)
+  // Capa de tinte dorado GARANTIZADA encima del mapa: da la tendencia
+  // dorada uniforme. (1x1 px ámbar como PNG generado en canvas.)
+  const tc = document.createElement('canvas'); tc.width = tc.height = 1;
+  const tg = tc.getContext('2d'); tg.fillStyle = '#a8874a'; tg.fillRect(0, 0, 1, 1);
+  const tinte = viewer.imageryLayers.addImageryProvider(
+    new Cesium.SingleTileImageryProvider({
+      url: tc.toDataURL('image/png'),
+      rectangle: Cesium.Rectangle.MAX_VALUE, tileWidth: 1, tileHeight: 1,
+    }));
+  tinte.alpha = 0.18;   // intensidad del dorado (sube/baja aquí)
+} else {
+  elCred.textContent = 'Mapa Natural Earth II · Motor CesiumJS';
+  document.getElementById('cred-mapa').textContent = 'Natural Earth II · CesiumJS';
+}
+
+// ---- Colores ------------------------------------------------------------
+const ROJO  = Cesium.Color.fromCssColorString('#FF4B33');
+const CIAN  = Cesium.Color.fromCssColorString('#3CF2D3');
+const AMBAR = Cesium.Color.fromCssColorString('#FFB042');
+
+// Sprite de "punto de luz": degradado radial (núcleo blanco -> color -> nada).
+// Así el glow es difuso de verdad, no un círculo dentro de otro círculo.
+function spriteLuz(css){
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const rad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  const col = Cesium.Color.fromCssColorString(css);
+  const rgb = Math.round(col.red*255) + ',' + Math.round(col.green*255) + ',' + Math.round(col.blue*255);
+  rad.addColorStop(0.00, 'rgba(255,255,255,1)');
+  rad.addColorStop(0.14, 'rgba(' + rgb + ',0.95)');
+  rad.addColorStop(0.35, 'rgba(' + rgb + ',0.35)');
+  rad.addColorStop(0.65, 'rgba(' + rgb + ',0.10)');
+  rad.addColorStop(1.00, 'rgba(' + rgb + ',0)');
+  g.fillStyle = rad; g.fillRect(0, 0, 64, 64);
+  return c.toDataURL('image/png');
+}
+const LUZ_CIAN = spriteLuz('#3CF2D3');
+const LUZ_ROJA = spriteLuz('#FF4B33');
+const LUZ_AMBAR = spriteLuz('#FFB042');
+
+const conCoords = DATOS.eventos.filter(e => e.lat !== null && e.lon !== null);
+if (conCoords.length === 0) {
+  avisar('La estructura no tiene eventos con coordenadas válidas para trazar.');
+}
+
+// ==========================================================================
+// RED DE CONEXIONES ÚNICAS
+// Cada tramo A→B (entre sitios distintos consecutivos) se registra UNA vez,
+// con el primer momento en que fue recorrido. Así el recorrido se ve como en
+// la referencia: una red limpia que se va construyendo, no una maraña.
+// ==========================================================================
+const tramos = new Map();   // clave "a|b" -> {a, b, tSalida}
+let prev = null;
+conCoords.forEach(e => {
+  if (prev && (prev.lat !== e.lat || prev.lon !== e.lon)) {
+    const ka = prev.lat + ',' + prev.lon, kb = e.lat + ',' + e.lon;
+    const clave = ka < kb ? ka + '|' + kb : kb + '|' + ka;
+    if (!tramos.has(clave)) {
+      tramos.set(clave, { a: prev, b: e, tSalida: isoDe(prev) });
+    }
+  }
+  prev = e;
+});
+
+// Capa 1: la red completa NO se dibuja al inicio. Cada tramo aparece cuando
+// el objetivo lo recorre (más abajo), para que el mapa arranque vacío y el
+// recorrido se vaya trazando poco a poco.
+
+// ---- Sitios / nodos ------------------------------------------------------
+// Cada sitio aparece cuando es visitado por primera vez (no todos al inicio).
+const primerInstante = new Map();
+const isoUlt = conCoords.length ? isoDe(conCoords[conCoords.length - 1]) : null;
+conCoords.forEach(e => {
+  const k = e.lat.toFixed(6) + ',' + e.lon.toFixed(6);
+  if (!primerInstante.has(k)) primerInstante.set(k, isoDe(e));
+});
+const maxFreq = Math.max.apply(null, DATOS.nodos.map(n => n.freq).concat([1]));
+const umbralRojo = Math.max(3, Math.ceil(maxFreq * 0.5));  // zona muy recorrida
+DATOS.nodos.forEach(n => {
+  const caliente = n.freq >= umbralRojo;
+  const k = n.lat.toFixed(6) + ',' + n.lon.toFixed(6);
+  const iso0 = primerInstante.get(k);
+  const disp = (iso0 && isoUlt) ? { availability: new Cesium.TimeIntervalCollection([
+      new Cesium.TimeInterval({ start: Cesium.JulianDate.fromIso8601(iso0),
+                                stop: Cesium.JulianDate.fromIso8601(isoUlt) })]) } : {};
+  // Punto de luz uniforme (sprite con degradado radial: núcleo + glow difuso).
+  viewer.entities.add(Object.assign({
+    name: 'Sitio',
+    position: Cesium.Cartesian3.fromDegrees(n.lon, n.lat),
+    billboard: {
+      image: caliente ? LUZ_ROJA : LUZ_CIAN,
+      width: 26, height: 26,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+    label: {
+      text: String(n.freq), font: '600 10px "JetBrains Mono", monospace',
+      fillColor: Cesium.Color.fromCssColorString('#F4F1E3').withAlpha(0.85),
+      pixelOffset: new Cesium.Cartesian2(0, -15),
+      verticalOrigin: Cesium.VerticalOrigin.CENTER, horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0.0, 9e4),
+    },
+    description:
+      '<table class="cesium-infoBox-defaultTable"><tbody>' +
+      '<tr><th>Pings</th><td>' + n.freq + '</td></tr>' +
+      '<tr><th>Latitud</th><td>' + n.lat + '</td></tr>' +
+      '<tr><th>Longitud</th><td>' + n.lon + '</td></tr>' +
+      '<tr><th>Primero</th><td>' + n.primero + '</td></tr>' +
+      '<tr><th>Último</th><td>' + n.ultimo + '</td></tr>' +
+      '</tbody></table>',
+  }, disp));
+});
+
+// ---- Objetivo animado + tramos que se encienden ---------------------------
+let objetivoEnt = null, inicio = null, fin = null, durSeg = 1;
+
+if (conCoords.length >= 1) {
+  const posicion = new Cesium.SampledPositionProperty();
+  let primera = null, ultima = null;
+  conCoords.forEach(e => {
+    const jd = Cesium.JulianDate.fromIso8601(isoDe(e));
+    posicion.addSample(jd, Cesium.Cartesian3.fromDegrees(e.lon, e.lat, 0));
+    if (!primera) primera = jd;
+    ultima = jd;
+  });
+  posicion.setInterpolationOptions({
+    interpolationDegree: 1, interpolationAlgorithm: Cesium.LinearApproximation,
+  });
+  posicion.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+  posicion.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+
+  inicio = primera;
+  fin = (Cesium.JulianDate.compare(ultima, primera) === 0)
+        ? Cesium.JulianDate.addSeconds(primera, 60, new Cesium.JulianDate())
+        : ultima;
+  durSeg = Math.max(Cesium.JulianDate.secondsDifference(fin, inicio), 1);
+
+  // Capa 2: rastro permanente con desvanecido gradual.
+  // Nace cian-azulado brillante y decae al azul marino en DIAS_FUNDIDO.
+  const AZUL_VIVO   = Cesium.Color.fromCssColorString('#2fd8ff'); // recién recorrido
+  const AZUL_MARINO = Cesium.Color.fromCssColorString('#1a4fff'); // reposo final
+  const ALPHA_VIVO   = 0.85;
+  const ALPHA_MARINO = 0.30;
+  const SIETE_DIAS   = 604800;
+  const FUNDIDO_SEG  = 604800 * 3;   // el decaimiento dura 3 semanas tras el neón
+
+  tramos.forEach(s => {
+    const t0 = Cesium.JulianDate.fromIso8601(s.tSalida);
+    if (Cesium.JulianDate.compare(t0, fin) >= 0) return;
+
+    const scratch = new Cesium.Color();   // color reutilizable por tramo
+
+    const colorFundido = new Cesium.CallbackProperty((time, result) => {
+      const edad = Cesium.JulianDate.secondsDifference(time, t0);
+      // Progreso 0 -> 1 desde que termina la fase neón (7 días)
+      let p = (edad - SIETE_DIAS) / FUNDIDO_SEG;
+      p = Math.min(Math.max(p, 0), 1);
+      p = p * p * (3 - 2 * p);            // smoothstep: transición suave
+      Cesium.Color.lerp(AZUL_VIVO, AZUL_MARINO, p, scratch);
+      scratch.alpha = ALPHA_VIVO + (ALPHA_MARINO - ALPHA_VIVO) * p;
+      return Cesium.Color.clone(scratch, result);
+    }, false);
+
+    const anchoFundido = new Cesium.CallbackProperty((time) => {
+      const edad = Cesium.JulianDate.secondsDifference(time, t0);
+      let p = (edad - SIETE_DIAS) / FUNDIDO_SEG;
+      p = Math.min(Math.max(p, 0), 1);
+      return 3.0 - 1.5 * p;               // 3 px -> 1.5 px
+    }, false);
+
+    viewer.entities.add({
+      availability: new Cesium.TimeIntervalCollection([
+        new Cesium.TimeInterval({ start: t0, stop: fin }),
+      ]),
+      polyline: {
+        positions: [Cesium.Cartesian3.fromDegrees(s.a.lon, s.a.lat),
+                    Cesium.Cartesian3.fromDegrees(s.b.lon, s.b.lat)],
+        width: anchoFundido,
+        material: new Cesium.ColorMaterialProperty(colorFundido),
+      },
+    });
+  });
+
+  // Punto del objetivo: estrella roja con latido (sprite difuso + núcleo)
+  const pulsoGlow = new Cesium.CallbackProperty(
+    () => 55 + 20 * Math.abs(Math.sin(Date.now() / 380)), false);
+  viewer.entities.add({
+    availability: new Cesium.TimeIntervalCollection([
+      new Cesium.TimeInterval({ start: inicio, stop: fin }),
+    ]),
+    position: posicion,
+    billboard: {
+      image: LUZ_ROJA, width: pulsoGlow, height: pulsoGlow,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+  });
+  objetivoEnt = viewer.entities.add({
+    name: DATOS.objetivo || 'Objetivo',
+    availability: new Cesium.TimeIntervalCollection([
+      new Cesium.TimeInterval({ start: inicio, stop: fin }),
+    ]),
+    position: posicion,
+    point: {
+      pixelSize: 9, color: Cesium.Color.fromCssColorString('#FFD9D2'),
+      outlineWidth: 0,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    },
+    path: {
+      leadTime: 0,
+      trailTime: 604800,
+      width: 6,
+      resolution: 120,
+      material: new Cesium.PolylineGlowMaterialProperty({
+        glowPower: 0.3,
+        color: Cesium.Color.fromCssColorString('#00ffcc'),
+      }),
+    },
+  });
+
+  // Reloj — velocidad automática (una vuelta = SEG_REPRO s a 1×)
+  viewer.clock.startTime = inicio.clone();
+  viewer.clock.stopTime = fin.clone();
+  viewer.clock.currentTime = inicio.clone();
+  viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
+  viewer.clock.multiplier = (MULT_FIJO > 0)
+      ? MULT_FIJO : Math.max(Math.round(durSeg / SEG_REPRO), 1);
+  viewer.clock.shouldAnimate = true;
+
+  // Encuadre inicial (breve, luego lo toma la cámara de seguimiento)
+  const pts = DATOS.nodos.map(n => Cesium.Cartesian3.fromDegrees(n.lon, n.lat));
+  if (pts.length) {
+    const esfera = Cesium.BoundingSphere.fromPoints(pts);
+    viewer.camera.flyToBoundingSphere(esfera, {
+      duration: 1.2,
+      offset: new Cesium.HeadingPitchRange(0, -0.85, Math.max(esfera.radius * 3.2, 4000)),
+    });
+  }
+}
+
+
+// Altura de la cámara de seguimiento según nivel de acercamiento.
+let ALT_SEGUIMIENTO = CONFIG.altSeguimiento;   // metros
+
+// ==========================================================================
+// CONTROLES PROPIOS (sustituyen al reloj y la línea de tiempo de Cesium)
+// ==========================================================================
+const multBase = viewer.clock.multiplier;
+const elReloj = document.getElementById('reloj');
+const elTAct = document.getElementById('t-actual');
+const elTFin = document.getElementById('t-fin');
+const elProg = document.getElementById('progreso');
+const elPer  = document.getElementById('perilla');
+const btnPlay = document.getElementById('play');
+const pista = document.getElementById('pista');
+
+function fyh(jd){  // JulianDate -> ['YYYY-MM-DD', 'HH:MM:SS']
+  const iso = Cesium.JulianDate.toIso8601(jd, 0).replace('Z','');
+  return iso.split('T');
+}
+if (inicio && fin) {
+  const [fi] = fyh(inicio), [ff, hf] = fyh(fin);
+  document.getElementById('f-ini').textContent = fi;
+  document.getElementById('f-fin').textContent = ff;
+  elTFin.textContent = ff + ' ' + (hf || '').slice(0,5);
+}
+
+viewer.clock.onTick.addEventListener(c => {
+  const [f, h] = fyh(c.currentTime);
+  elReloj.innerHTML = f + ' <small>' + (h || '') + '</small>';
+  elTAct.textContent = f + ' ' + (h || '').slice(0,5);
+  if (inicio && durSeg > 0) {
+    let p = Cesium.JulianDate.secondsDifference(c.currentTime, inicio) / durSeg;
+    p = Math.min(Math.max(p, 0), 1) * 100;
+    elProg.style.width = p + '%';
+    elPer.style.left = p + '%';
+  }
+  btnPlay.innerHTML = viewer.clock.shouldAnimate ? '&#10074;&#10074;' : '&#9654;';
+
+  // Cámara de seguimiento: mira desde arriba al objetivo a altura fija.
+  if (seguir && objetivoEnt) {
+    const pos = objetivoEnt.position.getValue(c.currentTime);
+    if (pos) {
+      const carto = Cesium.Cartographic.fromCartesian(pos);
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromRadians(
+          carto.longitude, carto.latitude, ALT_SEGUIMIENTO),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+      });
+    }
+  }
+});
+
+btnPlay.addEventListener('click', () => {
+  if (inicio && Cesium.JulianDate.secondsDifference(viewer.clock.stopTime, viewer.clock.currentTime) < 1) {
+    viewer.clock.currentTime = inicio.clone();   // al final: reiniciar
+  }
+  viewer.clock.shouldAnimate = !viewer.clock.shouldAnimate;
+});
+
+// Arrastrar / clic en la pista
+function irA(evX){
+  if (!inicio) return;
+  const r = pista.getBoundingClientRect();
+  const p = Math.min(Math.max((evX - r.left) / r.width, 0), 1);
+  viewer.clock.currentTime = Cesium.JulianDate.addSeconds(inicio, p * durSeg, new Cesium.JulianDate());
+}
+let arrastrando = false;
+pista.addEventListener('pointerdown', ev => { arrastrando = true; pista.setPointerCapture(ev.pointerId); irA(ev.clientX); });
+pista.addEventListener('pointermove', ev => { if (arrastrando) irA(ev.clientX); });
+pista.addEventListener('pointerup',   () => { arrastrando = false; });
+
+// Velocidades relativas (0.5× · 1× · 2× · 4× sobre la velocidad base)
+document.querySelectorAll('.vel').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.vel').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    viewer.clock.multiplier = multBase * parseFloat(b.dataset.f);
+  });
+});
+
+// ---- Botón "seguir al objetivo" (cámara propia, activado por defecto) ------
+let seguir = true;
+const btnSeguir = document.getElementById('seguir');
+function pintaSeguir(){
+  btnSeguir.classList.toggle('on', seguir);
+  btnSeguir.textContent = seguir ? 'Dejar de seguir' : 'Seguir al objetivo';
+}
+btnSeguir.addEventListener('click', () => {
+  seguir = !seguir;
+  if (seguir && objetivoEnt) {
+    ALT_SEGUIMIENTO = viewer.camera.positionCartographic.height;
+    const pos = objetivoEnt.position.getValue(viewer.clock.currentTime);
+    if (pos) {
+      const carto = Cesium.Cartographic.fromCartesian(pos);
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromRadians(
+          carto.longitude, carto.latitude, ALT_SEGUIMIENTO),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+      });
+    }
+  }
+  pintaSeguir();
+});
+pintaSeguir();
+
+// Si el usuario arrastra/hace zoom manualmente, se suelta el seguimiento.
+viewer.scene.canvas.addEventListener('pointerdown', () => {
+  if (seguir) { seguir = false; pintaSeguir(); }
+});
+viewer.scene.canvas.addEventListener('wheel', () => {
+  if (seguir) { seguir = false; pintaSeguir(); }
+});
+
+// Botón "Nueva sábana": recargar es lo más limpio con Cesium.
+document.getElementById('otra').addEventListener('click', () => location.reload());
+}
+
+// ==========================================================================
+// PANTALLA DE INICIO — un paso: elegir archivo -> extraer -> animar
+// ==========================================================================
+(function () {
+  const subida = document.getElementById('subida');
+  const inputArchivo = document.getElementById('archivo');
+  const btnSubir = document.getElementById('btn-subir');
+  const linkDemo = document.getElementById('link-demo');
+  const estado = document.getElementById('estado');
+
+  function setProcesando(on) {
+    btnSubir.disabled = on;
+    estado.classList.remove('err');
+    estado.innerHTML = on ? '<span class="spin"></span>Procesando sábana…' : '';
+  }
+  function mostrarError(msg) {
+    btnSubir.disabled = false;
+    estado.classList.add('err');
+    estado.textContent = msg;
+  }
+
+  function procesarArchivo(file) {
+    setProcesando(true);
+    // setTimeout: deja pintar el spinner antes del trabajo pesado
+    setTimeout(() => {
+      file.arrayBuffer().then(buf => {
+        const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+        const r = extraerSabana(wb, {
+          hoja: CONFIG.hoja,
+          objetivo: 'Objetivo',
+          descartarSinCoords: CONFIG.descartarSinCoords,
+          precisionNodos: CONFIG.precisionNodos,
+        });
+        const conCoords = r.contrato.eventos.filter(e => e.lat !== null).length;
+        if (conCoords === 0) {
+          mostrarError('La sábana no contiene filas con fecha y coordenadas válidas.');
+          return;
+        }
+        iniciarGlobo(r.contrato);
+      }).catch(err => {
+        mostrarError('No se pudo leer el archivo: ' + (err && err.message ? err.message : err));
+      });
+    }, 30);
+  }
+
+  btnSubir.addEventListener('click', () => inputArchivo.click());
+  inputArchivo.addEventListener('change', () => {
+    if (inputArchivo.files && inputArchivo.files[0]) procesarArchivo(inputArchivo.files[0]);
+    inputArchivo.value = '';
+  });
+
+  // Arrastrar y soltar sobre toda la pantalla de inicio (escritorio)
+  ['dragover', 'dragenter'].forEach(ev =>
+    subida.addEventListener(ev, e => { e.preventDefault(); subida.classList.add('arrastrando'); }));
+  ['dragleave', 'drop'].forEach(ev =>
+    subida.addEventListener(ev, e => { e.preventDefault(); subida.classList.remove('arrastrando'); }));
+  subida.addEventListener('drop', e => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) procesarArchivo(f);
+  });
+
+  // ---- Demo: trayectoria sintética (Chihuahua) para compartir el enlace ----
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function datosDemo() {
+    const rnd = mulberry32(20260706);
+    const jit = m => Math.floor((rnd() - 0.5) * 2 * m);   // ± m minutos
+    const S = {   // sitios (antenas fijas)
+      casa:    [28.6480, -106.0755],
+      trabajo: [28.6329, -106.0691],
+      gym:     [28.6520, -106.0880],
+      superm:  [28.6415, -106.0980],
+      plaza:   [28.6250, -106.0770],
+      familia: [28.7010, -106.1200],
+      aldama:  [28.8390, -105.9110],
+      delicias:[28.1900, -105.4700],
+    };
+    const crudos = [];
+    const base = Date.UTC(2026, 3, 1, 6, 0, 0);   // 2026-04-01 00:00 UTC-6
+    const DIA = 86400000, MIN = 60000;
+    const ping = (dia, hh, mm, sitio) => {
+      const ms = base + dia * DIA + (hh * 60 + mm + jit(12)) * MIN;
+      const fm = formatearMarca(ms);
+      crudos.push({ ms, t_utc: fm.t_utc, t_local: fm.t_local,
+                    lat: S[sitio][0], lon: S[sitio][1] });
+    };
+    for (let d = 0; d < 75; d++) {
+      const ds = (3 + d) % 7;                     // 2026-04-01 fue miércoles
+      if (d === 20) { ping(d, 9, 0, 'casa'); ping(d, 12, 30, 'aldama'); ping(d, 19, 0, 'aldama'); continue; }
+      if (d === 21) { ping(d, 10, 0, 'aldama'); ping(d, 17, 30, 'casa'); ping(d, 22, 0, 'casa'); continue; }
+      if (d === 47) { ping(d, 8, 0, 'casa'); ping(d, 11, 30, 'delicias'); ping(d, 20, 0, 'delicias'); continue; }
+      if (d === 48) { ping(d, 10, 0, 'delicias'); ping(d, 15, 0, 'delicias'); continue; }
+      if (d === 49) { ping(d, 9, 30, 'delicias'); ping(d, 13, 0, 'casa'); ping(d, 21, 0, 'casa'); continue; }
+      if (ds === 6) {                             // sábado
+        ping(d, 10, 30, 'casa'); ping(d, 12, 0, 'plaza');
+        ping(d, 15, 0, 'familia'); ping(d, 20, 30, 'casa'); continue;
+      }
+      if (ds === 0) {                             // domingo
+        ping(d, 11, 0, 'casa');
+        if (rnd() < 0.6) ping(d, 14, 0, 'familia');
+        ping(d, 19, 0, 'casa'); continue;
+      }
+      ping(d, 8, 10, 'casa');                     // entre semana
+      ping(d, 9, 5, 'trabajo'); ping(d, 14, 30, 'trabajo'); ping(d, 18, 40, 'trabajo');
+      if (ds === 1 || ds === 3 || ds === 5) ping(d, 19, 35, 'gym');
+      else if (rnd() < 0.5) ping(d, 19, 10, 'superm');
+      ping(d, 21, 30, 'casa'); ping(d, 23, 0, 'casa');
+    }
+    return armarContrato(crudos, 'DEMO', CONFIG.precisionNodos,
+                         { sin_fecha: 0, sin_coords: 0 });
+  }
+
+  linkDemo.addEventListener('click', () => iniciarGlobo(datosDemo()));
+})();
+</script>
+</body>
+</html>
