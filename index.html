@@ -80,7 +80,7 @@
       var dr = mulberry32(7);
       this.bokeh = Array.from({length:12},function(){return {x:dr(),y:dr(),r:.04+dr()*.13,a:.05+dr()*.10,kx:1+((dr()*2)|0),ky:1+((dr()*2)|0),ph:dr()*6.28};});
       // Red de nodos de fondo: se desborda más allá de los bordes (rango -0.18..1.18) para que no parezca un circuito cerrado
-      var bn = Array.from({length:80},function(){return {x:-.18+dr()*1.36,y:-.18+dr()*1.36,r:.9+dr()*1.3,a:.12+dr()*.16,kx:1+((dr()*3)|0),ky:1+((dr()*3)|0),ph:dr()*6.28};});
+      var bn = Array.from({length:80},function(){return {x:-.18+dr()*1.36,y:-.18+dr()*1.36,r:.8+dr()*1.1,a:.12+dr()*.16,kx:1+((dr()*3)|0),ky:1+((dr()*3)|0),ph:dr()*6.28};});
       var bl=[], seen={};
       for(var i=0;i<bn.length;i++){
         var best=[];
@@ -108,7 +108,7 @@
       var W=this.clientWidth||640, H=this.clientHeight||360;
       this.W=W;this.H=H;this.canvas.width=Math.round(W*dpr);this.canvas.height=Math.round(H*dpr);
       this.ctx.setTransform(dpr,0,0,dpr,0,0);
-      var S=Math.min(W,H)*0.33, cx=W*0.5, cy=H*0.42, amp=Math.min(W,H)*0.014;
+      var S=Math.min(W,H)*parseFloat(this.getAttribute('scale')||'0.33'), cx=W*0.5, cy=H*parseFloat(this.getAttribute('cy')||'0.42'), amp=Math.min(W,H)*0.014;
       this.nodes.forEach(function(n){ n.tx=cx+n.nx*S; n.ty=cy+n.ny*S; n.sx0=n.ax*W; n.sy0=n.ay*H; n.amp=amp; });
       this.S=S;
       this.buildScatterLinks();
@@ -147,7 +147,7 @@
       this.edges.forEach(function(e){ var a=pos[e[0]],b=pos[e[1]],lock=Math.min(a.p,b.p),rev=Math.pow(lock,edgeEx); if(rev<0.02)return; ctx.shadowBlur=(2.6*glow*lock)*(1-.82*settle); ctx.strokeStyle=rgba(.95*rev); ctx.lineWidth=baseW+(wLine-baseW)*lock; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); });
       ctx.shadowBlur=0;
       var self=this;
-      this.nodes.forEach(function(n,i){ var p=pos[i],isIcon=!!n.icon; var scatterR=isIcon?3.4:2.0,lockR=wLine*.5,r=scatterR+(lockR-scatterR)*p.p,gr=(isIcon?11:6)+6*p.p; var ga=(isIcon?.6:.42)*(1-.9*settle)*(.55+.45*meshFade); if(ga>.01){ var g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,gr); g.addColorStop(0,rgba(ga)); g.addColorStop(1,rgba(0)); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,gr,0,6.2832); ctx.fill(); } var coreA=isIcon?.92:(.28+.64*p.p); ctx.fillStyle=rgba(coreA); ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(.6,r),0,6.2832); ctx.fill(); if(isIcon&&iconAlpha>.02) self.icon(ctx,n.icon,p.x,p.y,14-2*p.p,iconAlpha,rgba); });
+      this.nodes.forEach(function(n,i){ var p=pos[i],isIcon=!!n.icon; var scatterR=isIcon?2.8:1.7,lockR=wLine*.5,r=scatterR+(lockR-scatterR)*p.p,gr=(isIcon?9:5)+5*p.p; var ga=(isIcon?.6:.42)*(1-.9*settle)*(.55+.45*meshFade); if(ga>.01){ var g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,gr); g.addColorStop(0,rgba(ga)); g.addColorStop(1,rgba(0)); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,gr,0,6.2832); ctx.fill(); } var coreA=isIcon?.92:(.28+.64*p.p); ctx.fillStyle=rgba(coreA); ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(.6,r),0,6.2832); ctx.fill(); if(isIcon&&iconAlpha>.02) self.icon(ctx,n.icon,p.x,p.y,12-2*p.p,iconAlpha,rgba); });
       if(this.wordEl){ this.wordEl.style.opacity=wAlpha; this.wordEl.style.transform='translateY('+(1-wAlpha)*16+'px)'; }
     }
     icon(ctx,type,x,y,r,a,rgba){
@@ -324,6 +324,14 @@
   /* ============================================================ */
   #subida{position:fixed;inset:0;z-index:50;background:#050505;overflow:hidden;}
   #fondo-reveal{position:absolute;inset:0;}
+  /* Iridiscencia sutil: mezcla 'overlay' tiñe los trazos del canvas
+     (medios tonos) y deja intactos los núcleos blancos y el fondo negro.
+     El lockup vive en #inicio-ui (encima, sin blend): sigue blanco puro. */
+  #irisado{position:absolute;inset:0;z-index:1;pointer-events:none;
+    mix-blend-mode:overlay;opacity:.5;
+    background:linear-gradient(115deg,#69d2ff 0%,#8f7bff 26%,#ff9ecf 50%,#ffd08a 74%,#6fffd2 100%);
+    animation:iris 14s linear infinite;}
+  @keyframes iris{to{filter:hue-rotate(360deg);}}
   #inicio-ui{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;
     align-items:center;justify-content:flex-end;text-align:center;pointer-events:none;
     padding:0 24px calc(30px + env(safe-area-inset-bottom, 0px));}
@@ -365,7 +373,8 @@
 
 <!-- ============ PANTALLA DE INICIO ============ -->
 <div id="subida">
-  <div id="fondo-reveal"><cerebro-reveal bg="transparent"></cerebro-reveal></div>
+  <div id="fondo-reveal"><cerebro-reveal bg="transparent" speed="1.4" scale="0.26" cy="0.33"></cerebro-reveal></div>
+  <div id="irisado"></div>
   <div id="inicio-ui">
     <div class="lk-nombre">CEREBRO</div>
     <div class="lk-geo">GEO</div>
@@ -442,9 +451,9 @@ const CONFIG = {
   usarLocal: true,        // reproducir en hora local UTC-6 (false = UTC)
   mapa: 'oscuro',         // oscuro | calles | satelite | natural
   token: '',              // token de Cesium ion (opcional)
-  multFijo: 28800,        // velocidad base: 28800 = 3 s por día de datos
+  multFijo: 21600,        // velocidad base: 21600 = 4 s por día de datos (más fluido)
   segRepro: 40,           // si multFijo=0: una vuelta completa dura ~40 s
-  altSeguimiento: 3000,   // altura cámara de seguimiento (m) — nivel colonia
+  altSeguimiento: 10000,  // altura cámara de seguimiento (m) — nivel ciudad
   hoja: 'crono',          // hoja esperada de la sábana
   precisionNodos: 4,      // 4 ≈ 11 m
   descartarSinCoords: true,
